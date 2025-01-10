@@ -43,14 +43,7 @@ async fn handle_hello(name: &str, event: &Request) -> Result<Response<Body>, Lam
 }
 
 async fn handle_home() -> Result<Response<Body>, LambdaError> {
-    let message = format!("Home");
-
-    let resp = Response::builder()
-        .status(200)
-        .header("content-type", "text/html")
-        .body(message.into())
-        .map_err(Box::new)?;
-    Ok(resp)
+    return handle_default("/index.html").await;
 }
 
 async fn handle_default(path: &str) -> Result<Response<Body>, LambdaError> {
@@ -83,28 +76,45 @@ async fn handle_default(path: &str) -> Result<Response<Body>, LambdaError> {
         return Ok(resp);
     }
 
-    let contents = fs::read(absolute_path)?;
-    let kind = infer::get(&contents).expect("Failed to infer content kind");
+    let contents = fs::read(&absolute_path)?;
 
-    match kind.matcher_type() {
-        MatcherType::Image => {
-            println!("returning image");
+    let kind = infer::get(&contents);
+
+    match kind {
+        Some(x) if x.matcher_type() == MatcherType::Image => {
             let resp = Response::builder()
                 .status(200)
-                .header("Content-Type", kind.mime_type())
+                .header("Content-Type", x.mime_type())
                 .header("Content-Encoding", "base64")
                 .body(Body::from_maybe_encoded(true, &STANDARD.encode(contents)))
                 .map_err(Box::new)?;
 
             return Ok(resp);
         }
-        _ => {
+        Some(x) => {
             let resp = Response::builder()
                 .status(200)
-                .header("content-type", kind.mime_type())
+                .header("content-type", x.mime_type())
                 .body(contents.into())
                 .map_err(Box::new)?;
+            return Ok(resp);
+        }
+        _ => {
+            let file_extension = Path::new(&absolute_path)
+                .extension()
+                .and_then(|extension| extension.to_str())
+                .unwrap_or("plain");
 
+            let text_type = match file_extension {
+                "js" => "javascript",
+                other => other,
+            };
+
+            let resp = Response::builder()
+                .status(200)
+                .header("content-type", format!("text/{text_type}"))
+                .body(contents.into())
+                .map_err(Box::new)?;
             return Ok(resp);
         }
     }
