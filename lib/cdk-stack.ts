@@ -3,6 +3,7 @@ import { AttributeType, Billing, TableV2 } from "aws-cdk-lib/aws-dynamodb";
 import * as path from "path";
 import { Construct } from "constructs";
 import {
+  aws_logs as logs,
   aws_dynamodb as dynamodb,
   aws_certificatemanager as certificates,
   aws_route53_targets as targets,
@@ -14,6 +15,7 @@ import {
   aws_s3_notifications as s3Notifications,
   aws_sqs as sqs,
 } from "aws-cdk-lib";
+import { log } from "console";
 
 export class LengthyCdkStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -71,7 +73,7 @@ export class LengthyCdkStack extends cdk.Stack {
       architecture: lambda.Architecture.X86_64,
       retryAttempts: 0,
       code: lambda.Code.fromAsset(
-        path.join(__dirname, "../lambda/target/lambda/lambda/bootstrap.zip")
+        path.join(__dirname, "../lambda/dist/out.zip")
       ),
       timeout: cdk.Duration.seconds(1),
     });
@@ -84,14 +86,38 @@ export class LengthyCdkStack extends cdk.Stack {
       "arn:aws:acm:us-west-2:728931088524:certificate/a77d3131-4923-48e2-b094-bfec8a337d3e"
     );
 
+    const logGroup = new logs.LogGroup(this, "AccessLogGroup", {
+      retention: logs.RetentionDays.ONE_WEEK, // Retention period for logs (you can change it)
+    });
+
     const restApi = new api.LambdaRestApi(this, "LengthyRESTAPI", {
       handler: apiLambda,
       domainName: {
         certificate: certificate,
         domainName: lengthyHostname,
       },
+      binaryMediaTypes: ["image/*"],
       deployOptions: {
-        stageName: "",
+        accessLogDestination: new api.LogGroupLogDestination(logGroup),
+        accessLogFormat: api.AccessLogFormat.custom(
+          JSON.stringify({
+            requestId: "$context.requestId",
+            extendedRequestId: "$context.extendedRequestId",
+            ip: "$context.identity.sourceIp",
+            caller: "$context.identity.caller",
+            user: "$context.identity.user",
+            requestTime: "$context.requestTime",
+            httpMethod: "$context.httpMethod",
+            resourcePath: "$context.resourcePath",
+            path: "$context.path",
+            status: "$context.status",
+            protocol: "$context.protocol",
+            responseLength: "$context.responseLength",
+            integrationLatency: "$context.integrationLatency",
+            integrationStatus: "$context.integrationStatus",
+            responseLatency: "$context.responseLatency",
+          })
+        ),
       },
     });
   }

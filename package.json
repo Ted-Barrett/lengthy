@@ -9,7 +9,7 @@
     "watch": "tsc -w",
     "test": "jest",
     "cdk": "cdk",
-    "release": "(cd lambda && cargo lambda build --release --output-format zip) && npm ci && npm run build"
+    "release": "(cd lambda && cargo lambda build --release) && (rm lambda/build -rf && rm lambda/dist -rf && mkdir -p lambda/build && mkdir -p lambda/dist) && (cp lambda/target/lambda/lambda/bootstrap lambda/build/ && cp -r lambda/public lambda/build/) && (cd lambda/build && zip -qr ../dist/out.zip .) && npm ci && npm run build"
   },
   "devDependencies": {
     "@types/jest": "^29.5.12",
