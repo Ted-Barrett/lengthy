@@ -17,7 +17,7 @@ function App() {
           flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
-          height: "100vh",
+          height: "80vh",
           gap: "1em",
         }}
       >
@@ -36,13 +36,28 @@ function Result({ result }: { result: string }) {
         opacity: result ? 1 : 0,
         pointerEvents: result ? undefined : "none",
         userSelect: result ? undefined : "none",
-        fontSize: "1em",
-        width: "25ch",
-        lineBreak: "anywhere",
-        textAlign: "right",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "flex-end",
+        gap: "0.5em",
       }}
     >
-      {result || "c".repeat(300)}
+      <div
+        style={{
+          fontSize: "1em",
+          width: "25ch",
+          lineBreak: "anywhere",
+          textAlign: "right",
+        }}
+      >
+        {result || "c".repeat(300)}
+      </div>
+      <button
+        style={{ width: "8ch" }}
+        onClick={() => navigator.clipboard.writeText(result)}
+      >
+        Copy
+      </button>
     </div>
   );
 }
@@ -60,7 +75,7 @@ function Title() {
 
   return (
     <div>
-      <div
+      <h1
         style={{
           color: "#00000000",
           position: "absolute",
@@ -68,11 +83,12 @@ function Title() {
           width: "8ch",
           lineBreak: "anywhere",
           textAlign: "right",
+          fontWeight: "normal",
         }}
       >
         {cRaw.slice(0, 40)}.{cRaw.slice(40)}
-      </div>
-      <div
+      </h1>
+      <h1
         style={{
           pointerEvents: "none",
           userSelect: "none",
@@ -80,10 +96,11 @@ function Title() {
           width: "8ch",
           lineBreak: "anywhere",
           textAlign: "right",
+          fontWeight: "normal",
         }}
       >
         {c.slice(0, 40)}.{c.slice(40)}
-      </div>
+      </h1>
     </div>
   );
 }
@@ -101,13 +118,14 @@ function useGenerate() {
         if (
           !url.host.includes(".") ||
           url.host.lastIndexOf(".") === url.host.length - 1 ||
-          !["http", "https"].includes(url.protocol)
+          !["http:", "https:"].includes(url.protocol)
         ) {
           throw new Error("Invalid");
         }
       } catch {
         throw new Error("Invalid URL");
       }
+      url.host = url.host.toLowerCase();
       const result = await (
         await fetch(`/api/generate/${encodeURIComponent(url.toString())}`)
       ).text();

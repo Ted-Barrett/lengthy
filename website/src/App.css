@@ -18,6 +18,14 @@ body {
   background-color: var(--bg);
 }
 
+::selection {
+  background: #ff000088;
+}
+
+h1::selection {
+  color: transparent;
+}
+
 input::placeholder {
   color: inherit;
   opacity: 0.7;
