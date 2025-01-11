@@ -18,7 +18,7 @@ pub(crate) async fn function_handler(event: Request) -> Result<Response<Body>, L
         [] => handle_home().await,
         ["api", "hello", name] => handle_hello(name, &event).await,
         ["api", "generate", some_url] => handle_generate(&dynamo_client, &some_url).await,
-        [c_string] if c_string.len() == 256 && c_string.chars().all(|c| c == 'C' || c == 'c') => {
+        [c_string] if c_string.len() == 255 && c_string.chars().all(|c| c == 'C' || c == 'c') => {
             handle_shortened_url(&dynamo_client, &c_string).await
         }
         _ => handle_default(path).await,
@@ -142,7 +142,11 @@ async fn handle_generate(
     };
 
     let hash = blake3::hash(url.as_str().as_bytes());
-    let hash_bytes = hash.as_bytes();
+    let mut hash_bytes = [0u8; 32];
+    hash_bytes.copy_from_slice(hash.as_bytes());
+
+    // Now modify the last byte in the mutable `hash_bytes` array
+    hash_bytes[hash_bytes.len() - 1] &= 0b11111110; // Clear the last bit
 
     let request = dynamo_client
         .put_item()
@@ -154,11 +158,12 @@ async fn handle_generate(
         );
     request.send().await?;
 
-    let c_string = bytes_to_c_string(hash_bytes);
+    let mut c_string = bytes_to_c_string(&hash_bytes);
+    c_string.pop();
 
     let domain = [&c_string[30..30 + 40], &c_string[20..20 + 2]].join(".");
 
-    let message = format!("{domain}/{c_string}");
+    let message = format!("{domain}/{c_string}/");
 
     let resp = Response::builder()
         .status(200)
@@ -172,7 +177,9 @@ async fn handle_shortened_url(
     dynamo_client: &DynamoDBClient,
     c_string: &str,
 ) -> Result<Response<Body>, LambdaError> {
-    let hash_bytes = c_string_to_bytes(c_string);
+    println!("handling {c_string}");
+    let padded_c_string = format!("{c_string}c");
+    let hash_bytes = c_string_to_bytes(&padded_c_string);
 
     let get_item_result = dynamo_client
         .get_item()
@@ -183,9 +190,11 @@ async fn handle_shortened_url(
 
     if let Some(item) = get_item_result.item {
         if let Some(attribute) = item.get("target") {
+            let result = attribute.as_s().unwrap();
+            println!("found {result}");
             let resp = Response::builder()
                 .status(307)
-                .header("location", attribute.as_s().unwrap())
+                .header("location", result)
                 .body("asdf".into())
                 .map_err(Box::new)?;
             return Ok(resp);
