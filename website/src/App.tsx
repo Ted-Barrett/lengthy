@@ -91,9 +91,30 @@ function Title() {
 function useGenerate() {
   return useMutation({
     mutationFn: async (val: string) => {
-      return await (
-        await fetch(`/api/generate/${encodeURIComponent(val)}`)
+      let url: URL;
+      try {
+        if (!URL.canParse(val)) {
+          url = new URL(`https://${val}`);
+        } else {
+          url = new URL(val);
+        }
+        if (
+          !url.host.includes(".") ||
+          url.host.lastIndexOf(".") === url.host.length - 1 ||
+          !["http", "https"].includes(url.protocol)
+        ) {
+          throw new Error("Invalid");
+        }
+      } catch {
+        throw new Error("Invalid URL");
+      }
+      const result = await (
+        await fetch(`/api/generate/${encodeURIComponent(url.toString())}`)
       ).text();
+      if (result.length !== 300) {
+        throw new Error("Oops... something broke");
+      }
+      return result;
     },
   });
 }
@@ -107,38 +128,53 @@ function LengthenerInput({
 
   const [val, setVal] = useState("");
 
+  const [err, setErr] = useState("");
+
   return (
-    <div style={{ display: "flex", gap: "1em" }}>
-      <input
-        value={val}
-        onChange={(event) => {
-          setVal(event.target.value);
-        }}
-        style={{
-          fontSize: "1.5em",
-          width: "30ch",
-        }}
-        placeholder="Enter URL to lengthen"
-      />
-      <button
-        onClick={() => {
-          generateMutator.mutate(val, {
-            onSuccess: (data) => {
-              console.log(data);
-              setGenerated(data);
-            },
-          });
-        }}
-        className={generateMutator.isPending ? "loading" : undefined}
-        style={{
-          pointerEvents: generateMutator.isPending ? "none" : undefined,
-          height: "100%",
-          width: "6ch",
-          padding: 0,
-        }}
-      >
-        Go
-      </button>
+    <div>
+      <div style={{ display: "flex", gap: "1em" }}>
+        <input
+          value={val}
+          onChange={(event) => {
+            setErr("");
+            setVal(event.target.value);
+          }}
+          style={{
+            fontSize: "1.5em",
+            width: "30ch",
+          }}
+          placeholder="Paste a URL"
+        />
+        <button
+          onClick={() => {
+            generateMutator.mutate(val, {
+              onSuccess: (data) => {
+                console.log(data);
+                setGenerated(data);
+              },
+              onError: (err) => {
+                setErr(String(err.message));
+              },
+            });
+          }}
+          className={generateMutator.isPending ? "loading" : undefined}
+          style={{
+            pointerEvents: generateMutator.isPending ? "none" : undefined,
+            height: "100%",
+            width: "6ch",
+            padding: 0,
+          }}
+        >
+          Go
+        </button>
+      </div>
+      {err ? (
+        <div>{err}</div>
+      ) : (
+        <div style={{ pointerEvents: "none", userSelect: "none", opacity: 0 }}>
+          no_error
+        </div>
+      )}
     </div>
   );
 }

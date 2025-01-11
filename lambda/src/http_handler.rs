@@ -5,6 +5,7 @@ use infer::MatcherType;
 use lambda_http::{Body, Error as LambdaError, Request, RequestExt, Response};
 use percent_encoding::percent_decode_str;
 use std::{env, fs, path::Path};
+use url::Url;
 
 pub(crate) async fn function_handler(event: Request) -> Result<Response<Body>, LambdaError> {
     let config = aws_config::defaults(BehaviorVersion::latest()).load().await;
@@ -124,7 +125,23 @@ async fn handle_generate(
     dynamo_client: &DynamoDBClient,
     target: &str,
 ) -> Result<Response<Body>, LambdaError> {
-    let hash = blake3::hash(target.as_bytes());
+    let invalid_resp = Response::builder()
+        .status(400)
+        .header("content-type", "text/html")
+        .body("Invalid input".into())
+        .map_err(Box::new)?;
+
+    let url = match percent_decode_str(target)
+        .decode_utf8()
+        .and_then(|decoded_str| Ok(Url::parse(&decoded_str)))
+    {
+        Ok(Ok(result)) if ((result.scheme() == "https") || (result.scheme() == "http")) => result,
+        _ => {
+            return Ok(invalid_resp);
+        }
+    };
+
+    let hash = blake3::hash(url.as_str().as_bytes());
     let hash_bytes = hash.as_bytes();
 
     let request = dynamo_client
