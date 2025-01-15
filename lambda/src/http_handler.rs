@@ -1,3 +1,7 @@
+use aes_gcm::{
+    aead::{generic_array::GenericArray, Aead, AeadCore, KeyInit, OsRng},
+    Aes256Gcm, Key,
+};
 use aws_config::BehaviorVersion;
 use aws_sdk_dynamodb::{types::AttributeValue, Client as DynamoDBClient};
 use base64::{engine::general_purpose::STANDARD, Engine};
@@ -18,7 +22,10 @@ pub(crate) async fn function_handler(event: Request) -> Result<Response<Body>, L
         [] => handle_home().await,
         ["api", "hello", name] => handle_hello(name, &event).await,
         ["api", "generate", some_url] => handle_generate(&dynamo_client, &some_url).await,
-        [c_string] if c_string.len() == 255 && c_string.chars().all(|c| c == 'C' || c == 'c') => {
+        [c_string]
+            if c_string.len() == 256
+                && c_string.chars().all(|c| c == 'C' || c == 'c' || c == '.') =>
+        {
             handle_shortened_url(&dynamo_client, &c_string).await
         }
         _ => handle_default(path).await,
@@ -60,7 +67,7 @@ async fn handle_default(path: &str) -> Result<Response<Body>, LambdaError> {
             let resp = Response::builder()
                 .status(404)
                 .header("content-type", "text/html")
-                .body("Not found".into())
+                .body("File not found".into())
                 .map_err(Box::new)?;
 
             return Ok(resp);
@@ -142,28 +149,47 @@ async fn handle_generate(
     };
 
     let hash = blake3::hash(url.as_str().as_bytes());
-    let mut hash_bytes = [0u8; 32];
-    hash_bytes.copy_from_slice(hash.as_bytes());
+    let aes_key_bytes = hash.as_bytes();
 
-    // Now modify the last byte in the mutable `hash_bytes` array
-    hash_bytes[hash_bytes.len() - 1] &= 0b11111110; // Clear the last bit
+    let key = Key::<Aes256Gcm>::from_slice(aes_key_bytes);
+    let nonce = Aes256Gcm::generate_nonce(&mut OsRng);
+
+    let cipher = Aes256Gcm::new(&key);
+    let cipher_text = cipher
+        .encrypt(&nonce, (url).to_string().as_bytes().as_ref())
+        .unwrap();
+
+    let mut result = nonce.to_vec();
+    result.extend_from_slice(&cipher_text);
+
+    let key_hash = blake3::hash(aes_key_bytes);
 
     let request = dynamo_client
         .put_item()
         .table_name("lengthy-prod")
-        .item("pk", AttributeValue::B(hash_bytes.to_vec().into()))
-        .item(
-            "target",
-            AttributeValue::S(percent_decode_str(target).decode_utf8().unwrap().into()),
-        );
+        .item("pk", AttributeValue::B(key_hash.as_bytes().to_vec().into()))
+        .item("target", AttributeValue::B(result.into()));
     request.send().await?;
 
-    let mut c_string = bytes_to_c_string(&hash_bytes);
-    c_string.pop();
+    let c_string = bytes_to_c_string(aes_key_bytes);
 
     let domain = [&c_string[30..30 + 40], &c_string[20..20 + 2]].join(".");
 
-    let message = format!("{domain}/{c_string}/");
+    let mut dotted_c_vec: Vec<char> = c_string.clone().chars().collect();
+
+    let mut counter: usize = 0;
+
+    for &byte in &hash.as_bytes()[..16] {
+        counter += usize::from(byte);
+        counter %= 256;
+        if dotted_c_vec[counter] == 'c' {
+            dotted_c_vec[counter] = '.'
+        }
+    }
+
+    let dotted_c_string: String = dotted_c_vec.iter().collect();
+
+    let message = format!("{domain}/{dotted_c_string}");
 
     let resp = Response::builder()
         .status(200)
@@ -178,24 +204,37 @@ async fn handle_shortened_url(
     c_string: &str,
 ) -> Result<Response<Body>, LambdaError> {
     println!("handling {c_string}");
-    let padded_c_string = format!("{c_string}c");
-    let hash_bytes = c_string_to_bytes(&padded_c_string);
+    let aes_key_bytes = c_string_to_bytes(c_string);
+
+    let key_hash = blake3::hash(&aes_key_bytes);
 
     let get_item_result = dynamo_client
         .get_item()
         .table_name("lengthy-prod")
-        .key("pk", AttributeValue::B(hash_bytes.to_vec().into()))
+        .key("pk", AttributeValue::B(key_hash.as_bytes().to_vec().into()))
         .send()
         .await?;
 
     if let Some(item) = get_item_result.item {
         if let Some(attribute) = item.get("target") {
-            let result = attribute.as_s().unwrap();
-            println!("found {result}");
+            let result = attribute.as_b().unwrap().clone().into_inner();
+            println!("found result");
+            let nonce: &GenericArray<u8, _> = GenericArray::from_slice(&result[..12]);
+            let cipher_text: Vec<u8> = result.as_slice()[12..].to_vec();
+
+            let key = Key::<Aes256Gcm>::from_slice(&aes_key_bytes);
+
+            let cipher = Aes256Gcm::new(&key);
+
+            let plain_text = cipher.decrypt(&nonce, cipher_text.as_ref()).unwrap();
+
+            let url_string = String::from_utf8(plain_text).unwrap();
+
             let resp = Response::builder()
                 .status(307)
-                .header("location", result)
-                .body("asdf".into())
+                .header("location", url_string)
+                .header("Referrer-Policy", "no-referrer")
+                .body("Redirecting".into())
                 .map_err(Box::new)?;
             return Ok(resp);
         } else {
