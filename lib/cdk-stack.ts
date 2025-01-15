@@ -109,7 +109,7 @@ export class LengthyCdkStack extends cdk.Stack {
             requestTime: "$context.requestTime",
             httpMethod: "$context.httpMethod",
             resourcePath: "$context.resourcePath",
-            path: "$context.path",
+            // path: "$context.path",
             status: "$context.status",
             protocol: "$context.protocol",
             responseLength: "$context.responseLength",

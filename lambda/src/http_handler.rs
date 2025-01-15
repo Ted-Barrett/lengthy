@@ -19,8 +19,7 @@ pub(crate) async fn function_handler(event: Request) -> Result<Response<Body>, L
     let path_components: Vec<&str> = path.split("/").filter(|&x| !x.is_empty()).collect();
 
     let response = match path_components.as_slice() {
-        [] => handle_home().await,
-        ["api", "hello", name] => handle_hello(name, &event).await,
+        [] => handle_file("/index.html").await,
         ["api", "generate", some_url] => handle_generate(&dynamo_client, &some_url).await,
         [c_string]
             if c_string.len() == 256
@@ -28,33 +27,20 @@ pub(crate) async fn function_handler(event: Request) -> Result<Response<Body>, L
         {
             handle_shortened_url(&dynamo_client, &c_string).await
         }
-        _ => handle_default(path).await,
+        _ => handle_file(path).await,
     };
 
     response
 }
 
-async fn handle_hello(name: &str, event: &Request) -> Result<Response<Body>, LambdaError> {
-    let who = event
-        .query_string_parameters_ref()
-        .and_then(|params| params.first("name"))
-        .unwrap_or(name);
+async fn handle_file(path: &str) -> Result<Response<Body>, LambdaError> {
+    println!("handle_default");
 
-    let message = format!("Hello {who}, this is an AWS Lambda HTTP request.",);
-
-    let resp = Response::builder()
-        .status(200)
+    let not_found_resp = Response::builder()
+        .status(404)
         .header("content-type", "text/html")
-        .body(message.into())
-        .map_err(Box::new)?;
-    Ok(resp)
-}
+        .body("File not found".into())?;
 
-async fn handle_home() -> Result<Response<Body>, LambdaError> {
-    return handle_default("/index.html").await;
-}
-
-async fn handle_default(path: &str) -> Result<Response<Body>, LambdaError> {
     let current_dir = env::current_dir().expect("Failed to get current directory");
 
     let public_dir = current_dir.join("public");
@@ -64,24 +50,13 @@ async fn handle_default(path: &str) -> Result<Response<Body>, LambdaError> {
     let absolute_path = match public_dir.join(relative_path).canonicalize() {
         Ok(path) => path,
         Err(_) => {
-            let resp = Response::builder()
-                .status(404)
-                .header("content-type", "text/html")
-                .body("File not found".into())
-                .map_err(Box::new)?;
-
-            return Ok(resp);
+            return Ok(not_found_resp);
         }
     };
 
+    // Ensure requested path doesn't escape the public directory
     if !absolute_path.starts_with(public_dir) {
-        let resp = Response::builder()
-            .status(404)
-            .header("content-type", "text/html")
-            .body("Invalid path".into())
-            .map_err(Box::new)?;
-
-        return Ok(resp);
+        return Ok(not_found_resp);
     }
 
     let contents = fs::read(&absolute_path)?;
@@ -90,12 +65,12 @@ async fn handle_default(path: &str) -> Result<Response<Body>, LambdaError> {
 
     match kind {
         Some(x) if x.matcher_type() == MatcherType::Image => {
+            // APIG requires that binary files are encoded in base64
             let resp = Response::builder()
                 .status(200)
                 .header("Content-Type", x.mime_type())
                 .header("Content-Encoding", "base64")
-                .body(Body::from_maybe_encoded(true, &STANDARD.encode(contents)))
-                .map_err(Box::new)?;
+                .body(Body::from_maybe_encoded(true, &STANDARD.encode(contents)))?;
 
             return Ok(resp);
         }
@@ -103,8 +78,7 @@ async fn handle_default(path: &str) -> Result<Response<Body>, LambdaError> {
             let resp = Response::builder()
                 .status(200)
                 .header("content-type", x.mime_type())
-                .body(contents.into())
-                .map_err(Box::new)?;
+                .body(contents.into())?;
             return Ok(resp);
         }
         _ => {
@@ -121,8 +95,7 @@ async fn handle_default(path: &str) -> Result<Response<Body>, LambdaError> {
             let resp = Response::builder()
                 .status(200)
                 .header("content-type", format!("text/{text_type}"))
-                .body(contents.into())
-                .map_err(Box::new)?;
+                .body(contents.into())?;
             return Ok(resp);
         }
     }
@@ -132,11 +105,12 @@ async fn handle_generate(
     dynamo_client: &DynamoDBClient,
     target: &str,
 ) -> Result<Response<Body>, LambdaError> {
+    println!("handle_generate");
+
     let invalid_resp = Response::builder()
         .status(400)
         .header("content-type", "text/html")
-        .body("Invalid input".into())
-        .map_err(Box::new)?;
+        .body("Invalid input".into())?;
 
     let url = match percent_decode_str(target)
         .decode_utf8()
@@ -151,14 +125,15 @@ async fn handle_generate(
     let hash = blake3::hash(url.as_str().as_bytes());
     let aes_key_bytes = hash.as_bytes();
 
-    let key = Key::<Aes256Gcm>::from_slice(aes_key_bytes);
+    let aes_key = Key::<Aes256Gcm>::from_slice(aes_key_bytes);
     let nonce = Aes256Gcm::generate_nonce(&mut OsRng);
 
-    let cipher = Aes256Gcm::new(&key);
+    let cipher = Aes256Gcm::new(&aes_key);
     let cipher_text = cipher
         .encrypt(&nonce, (url).to_string().as_bytes().as_ref())
         .unwrap();
 
+    // Concat the nonce and the cipher_text so they can be stored together
     let mut result = nonce.to_vec();
     result.extend_from_slice(&cipher_text);
 
@@ -203,7 +178,8 @@ async fn handle_shortened_url(
     dynamo_client: &DynamoDBClient,
     c_string: &str,
 ) -> Result<Response<Body>, LambdaError> {
-    println!("handling {c_string}");
+    println!("handle_shortened_url");
+
     let aes_key_bytes = c_string_to_bytes(c_string);
 
     let key_hash = blake3::hash(&aes_key_bytes);

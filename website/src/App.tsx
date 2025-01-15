@@ -165,9 +165,10 @@ function LengthenerInput({
         />
         <button
           onClick={() => {
+            setGenerated("");
+            setErr("");
             generateMutator.mutate(val, {
               onSuccess: (data) => {
-                console.log(data);
                 setGenerated(data);
               },
               onError: (err) => {
@@ -179,11 +180,11 @@ function LengthenerInput({
           style={{
             pointerEvents: generateMutator.isPending ? "none" : undefined,
             height: "100%",
-            width: "6ch",
+            width: "12ch",
             padding: 0,
           }}
         >
-          Go
+          Generate
         </button>
       </div>
       {err ? (
