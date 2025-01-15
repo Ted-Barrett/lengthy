@@ -150,19 +150,39 @@ function LengthenerInput({
 
   return (
     <div>
-      <div style={{ display: "flex", gap: "1em" }}>
-        <input
-          value={val}
-          onChange={(event) => {
-            setErr("");
-            setVal(event.target.value);
-          }}
-          style={{
-            fontSize: "1.5em",
-            width: "30ch",
-          }}
-          placeholder="Paste a URL"
-        />
+      <div
+        style={{
+          display: "flex",
+          gap: "1em",
+          maxWidth: "100vw",
+          flexWrap: "wrap",
+          justifyContent: "center",
+        }}
+      >
+        <div style={{ alignItems: "center", maxWidth: "90%" }}>
+          <input
+            value={val}
+            onChange={(event) => {
+              setErr("");
+              setVal(event.target.value);
+            }}
+            style={{
+              fontSize: "1.5em",
+              width: "30ch",
+              maxWidth: "100%",
+            }}
+            placeholder="Paste a URL"
+          />
+          {err ? (
+            <div>{err}</div>
+          ) : (
+            <div
+              style={{ pointerEvents: "none", userSelect: "none", opacity: 0 }}
+            >
+              no_error
+            </div>
+          )}
+        </div>
         <button
           onClick={() => {
             setGenerated("");
@@ -187,13 +207,6 @@ function LengthenerInput({
           Generate
         </button>
       </div>
-      {err ? (
-        <div>{err}</div>
-      ) : (
-        <div style={{ pointerEvents: "none", userSelect: "none", opacity: 0 }}>
-          no_error
-        </div>
-      )}
     </div>
   );
 }
