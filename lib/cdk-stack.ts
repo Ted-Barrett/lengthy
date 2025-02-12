@@ -1,25 +1,29 @@
 import * as cdk from "aws-cdk-lib";
-import { AttributeType, Billing, TableV2 } from "aws-cdk-lib/aws-dynamodb";
 import * as path from "path";
 import { Construct } from "constructs";
 import {
   aws_logs as logs,
   aws_dynamodb as dynamodb,
   aws_certificatemanager as certificates,
-  aws_route53_targets as targets,
   aws_apigateway as api,
   aws_iam as iam,
   aws_lambda as lambda,
-  aws_lambda_event_sources as lambdaEventSources,
-  aws_s3 as s3,
-  aws_s3_notifications as s3Notifications,
-  aws_sqs as sqs,
 } from "aws-cdk-lib";
-import { log } from "console";
+import "dotenv/config";
+
+function assertDefined<t>(value: t): asserts value is Exclude<t, undefined> {
+  if (value === undefined) {
+    throw new Error("The value should not be undefined");
+  }
+}
 
 export class LengthyCdkStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     const stage = "prod";
+    const LENGTHY_HOSTNAME = process.env.LENGTHY_HOSTNAME;
+    const LENGTHY_CERTIFICATE_ARN = process.env.LENGTHY_CERTIFICATE_ARN;
+    assertDefined(LENGTHY_HOSTNAME);
+    assertDefined(LENGTHY_CERTIFICATE_ARN);
 
     super(scope, id, props);
 
@@ -49,16 +53,9 @@ export class LengthyCdkStack extends cdk.Stack {
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
         actions: [
-          "dynamodb:BatchGetItem",
-          "dynamodb:BatchWriteItem",
-          "dynamodb:ConditionCheckItem",
           "dynamodb:PutItem",
           "dynamodb:DescribeTable",
-          "dynamodb:DeleteItem",
           "dynamodb:GetItem",
-          "dynamodb:Scan",
-          "dynamodb:Query",
-          "dynamodb:UpdateItem",
         ],
         resources: [mainTable.tableArn],
       })
@@ -78,12 +75,10 @@ export class LengthyCdkStack extends cdk.Stack {
       timeout: cdk.Duration.seconds(1),
     });
 
-    const lengthyHostname = "cccccccccccccccccccccccccccccccccccccccc.cc";
-
     const certificate = certificates.Certificate.fromCertificateArn(
       this,
       "LengthyCertificate",
-      "arn:aws:acm:us-west-2:728931088524:certificate/a77d3131-4923-48e2-b094-bfec8a337d3e"
+      LENGTHY_CERTIFICATE_ARN
     );
 
     const logGroup = new logs.LogGroup(this, "AccessLogGroup", {
@@ -94,7 +89,7 @@ export class LengthyCdkStack extends cdk.Stack {
       handler: apiLambda,
       domainName: {
         certificate: certificate,
-        domainName: lengthyHostname,
+        domainName: LENGTHY_HOSTNAME,
       },
       binaryMediaTypes: ["image/*"],
       deployOptions: {
@@ -109,7 +104,6 @@ export class LengthyCdkStack extends cdk.Stack {
             requestTime: "$context.requestTime",
             httpMethod: "$context.httpMethod",
             resourcePath: "$context.resourcePath",
-            // path: "$context.path",
             status: "$context.status",
             protocol: "$context.protocol",
             responseLength: "$context.responseLength",
