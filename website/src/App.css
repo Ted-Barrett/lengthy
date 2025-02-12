@@ -4,6 +4,7 @@
   box-sizing: border-box;
   -webkit-box-sizing: border-box;
   -moz-box-sizing: border-box;
+  --github: #24292f;
 }
 
 body,
@@ -56,6 +57,11 @@ button:active {
   initial-value: 0%;
 }
 
+.link {
+  color: var(--fg);
+  text-decoration: none;
+}
+
 .loading {
   border: none;
   background: conic-gradient(
@@ -88,5 +94,6 @@ button:active {
   :root {
     --bg: #000000;
     --fg: #ffffff;
+    --github: #ffffff;
   }
 }
