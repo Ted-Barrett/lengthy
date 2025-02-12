@@ -73,6 +73,7 @@ export class LengthyCdkStack extends cdk.Stack {
         path.join(__dirname, "../lambda/dist/out.zip")
       ),
       timeout: cdk.Duration.seconds(1),
+      reservedConcurrentExecutions: 10,
     });
 
     const certificate = certificates.Certificate.fromCertificateArn(
@@ -85,7 +86,7 @@ export class LengthyCdkStack extends cdk.Stack {
       retention: logs.RetentionDays.ONE_WEEK, // Retention period for logs (you can change it)
     });
 
-    const restApi = new api.LambdaRestApi(this, "LengthyRESTAPI", {
+    new api.LambdaRestApi(this, "LengthyRESTAPI", {
       handler: apiLambda,
       domainName: {
         certificate: certificate,
@@ -93,6 +94,8 @@ export class LengthyCdkStack extends cdk.Stack {
       },
       binaryMediaTypes: ["image/*"],
       deployOptions: {
+        throttlingRateLimit: 5,
+        throttlingBurstLimit: 500,
         accessLogDestination: new api.LogGroupLogDestination(logGroup),
         accessLogFormat: api.AccessLogFormat.custom(
           JSON.stringify({

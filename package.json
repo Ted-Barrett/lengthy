@@ -5,6 +5,7 @@
     "cdk": "bin/cdk.js"
   },
   "scripts": {
+    "cdk": "cdk",
     "format": "prettier --write .",
     "lint": "tsc",
     "buildWebsite": "(cd website && npm ci && npm run build)",
