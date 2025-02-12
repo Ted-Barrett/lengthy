@@ -17,7 +17,7 @@ function App() {
           flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
-          height: "80vh",
+          height: "90vh",
           gap: "1em",
         }}
       >
@@ -26,6 +26,7 @@ function App() {
         <LengthenerInput setGenerated={setGenerated} />
         <Result result={generated} />
       </div>
+      <TermsOfUse />
     </QueryClientProvider>
   );
 }
@@ -228,6 +229,98 @@ function GitHubLink() {
         </svg>
       }
     />
+  );
+}
+
+function TermsOfUse() {
+  const [visible, setVisible] = useState(false);
+  return (
+    <>
+      <div
+        style={{
+          position: "absolute",
+          bottom: 0,
+          left: 0,
+          width: "100vw",
+          textAlign: "center",
+          paddingBottom: "10px",
+        }}
+      >
+        {!visible && (
+          <div
+            style={{
+              opacity: 0.6,
+              transform: "translate",
+            }}
+            onClick={() => setVisible(true)}
+          >
+            By using this website, you agree to the{" "}
+            <span style={{ textDecoration: "underline" }}>terms of use</span>
+          </div>
+        )}
+      </div>
+      {visible && (
+        <>
+          <div
+            style={{
+              top: 0,
+              left: 0,
+              position: "absolute",
+              width: "100vw",
+              height: "90vh",
+              background: "var(--bg)",
+            }}
+          />
+          <div
+            style={{
+              top: 0,
+              left: 0,
+              position: "absolute",
+              transform: "translate(50px, 50px)",
+              width: "calc(100vw - 100px)",
+              height: "70vh",
+              background: "var(--bg)",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "1em",
+              padding: "50px",
+            }}
+          >
+            <h2>Terms of use</h2>
+            <div>
+              "The Service" (including this website and all associated
+              infrastructure) is provided under the following terms:
+            </div>
+            <div>
+              <div>
+                1. By using the service, you agree that you are solely
+                responsible for any URLs you create or share.
+              </div>
+              <div>
+                2. The service is provided "as is" without any warranties or
+                guarantees of availability, accuracy, or security.
+              </div>
+              <div>
+                3. You must not use the service for illegal, harmful, or
+                malicious purposes.
+              </div>
+              <div>
+                4. The service owner is not liable for any damages or issues
+                arising from the use of this service.
+              </div>
+              <div>
+                5. These terms may be updated at any time without notice.
+              </div>
+            </div>
+            <button style={{ width: "9ch" }} onClick={() => setVisible(false)}>
+              Close
+            </button>
+          </div>
+        </>
+      )}
+    </>
   );
 }
 

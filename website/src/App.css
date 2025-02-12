@@ -1,10 +1,13 @@
 :root {
   --bg: #ffffff;
   --fg: #000000;
+  --github: #24292f;
+}
+
+* {
   box-sizing: border-box;
   -webkit-box-sizing: border-box;
   -moz-box-sizing: border-box;
-  --github: #24292f;
 }
 
 body,
@@ -17,6 +20,8 @@ button {
 
 body {
   background-color: var(--bg);
+  margin: 0;
+  padding: 0;
 }
 
 ::selection {
