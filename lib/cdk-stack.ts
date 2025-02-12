@@ -34,7 +34,7 @@ export class LengthyCdkStack extends cdk.Stack {
         maxReadRequestUnits: 400,
         maxWriteRequestUnits: 100,
       }),
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
 
     const lambdaExecutionRole = new iam.Role(
@@ -44,10 +44,10 @@ export class LengthyCdkStack extends cdk.Stack {
         assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
         managedPolicies: [
           iam.ManagedPolicy.fromAwsManagedPolicyName(
-            "service-role/AWSLambdaBasicExecutionRole"
+            "service-role/AWSLambdaBasicExecutionRole",
           ),
         ],
-      }
+      },
     );
     lambdaExecutionRole.addToPolicy(
       new iam.PolicyStatement({
@@ -58,7 +58,7 @@ export class LengthyCdkStack extends cdk.Stack {
           "dynamodb:GetItem",
         ],
         resources: [mainTable.tableArn],
-      })
+      }),
     );
 
     const apiLambda = new lambda.Function(this, "lengthyApiLambda", {
@@ -70,7 +70,7 @@ export class LengthyCdkStack extends cdk.Stack {
       architecture: lambda.Architecture.X86_64,
       retryAttempts: 0,
       code: lambda.Code.fromAsset(
-        path.join(__dirname, "../lambda/dist/out.zip")
+        path.join(__dirname, "../lambda/dist/out.zip"),
       ),
       timeout: cdk.Duration.seconds(1),
       reservedConcurrentExecutions: 10,
@@ -79,7 +79,7 @@ export class LengthyCdkStack extends cdk.Stack {
     const certificate = certificates.Certificate.fromCertificateArn(
       this,
       "LengthyCertificate",
-      LENGTHY_CERTIFICATE_ARN
+      LENGTHY_CERTIFICATE_ARN,
     );
 
     const logGroup = new logs.LogGroup(this, "AccessLogGroup", {
@@ -113,7 +113,7 @@ export class LengthyCdkStack extends cdk.Stack {
             integrationLatency: "$context.integrationLatency",
             integrationStatus: "$context.integrationStatus",
             responseLatency: "$context.responseLatency",
-          })
+          }),
         ),
       },
     });

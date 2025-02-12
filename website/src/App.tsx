@@ -218,7 +218,7 @@ function shuffleCase(s: string, p: number) {
         ? x === x.toUpperCase()
           ? x.toLowerCase()
           : x.toUpperCase()
-        : x
+        : x,
     )
     .join("");
 }

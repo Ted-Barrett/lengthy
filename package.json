@@ -7,7 +7,7 @@
   "scripts": {
     "cdk": "cdk",
     "format": "prettier --write .",
-    "lint": "tsc",
+    "lint": "tsc && prettier --check .",
     "buildWebsite": "(cd website && npm ci && npm run build)",
     "buildLambda": "(cd lambda && cargo lambda build --release) && (rm lambda/build -rf && rm lambda/dist -rf && mkdir -p lambda/build/public && mkdir -p lambda/dist) && (cp lambda/target/lambda/lambda/bootstrap lambda/build/)",
     "zipLambda": "(cp -r website/dist/* lambda/build/public) && (cd lambda/build && zip -qr ../dist/out.zip .)",
